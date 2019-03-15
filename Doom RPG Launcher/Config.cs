@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace DoomRPG
 {
@@ -174,11 +173,7 @@ namespace DoomRPG
 			}
 		}
 
-		public Config()
-		{
-		}
-
-		private string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + Assembly.GetEntryAssembly().GetName().Name + ".cfg";
+		private readonly string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + Assembly.GetEntryAssembly().GetName().Name + ".cfg";
 
 		public string portPath = string.Empty;
 
@@ -205,6 +200,14 @@ namespace DoomRPG
 		public List<string> mods = new List<string>();
 
 		public string customCommands = string.Empty;
+
+		public bool EnableDMFlags;
+
+		public int DMFlags;
+
+		public bool EnableDMFlags2;
+
+		public int DMFlags2;
 
 		public bool multiplayer;
 
