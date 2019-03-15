@@ -4,14 +4,14 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using ICSharpCode.SharpZipLib.Zip;
-using Octokit;
+using DoomRPG.Properties;
 
 namespace DoomRPG
 {
@@ -24,9 +24,90 @@ namespace DoomRPG
 			this.config.Load();
 			this.PopulateComboBoxes();
 			this.PopulatePatches();
+			this.checkedListBoxMods.ItemCheck += this.CheckedListBoxMods_ItemCheck;
 			this.PopulateMods();
+			this.PopulateDMFlags();
 			this.LoadControls();
 			this.LoadCredits();
+			this.PopulateBranchesComboBox();
+		}
+
+		private void CheckedListBoxMods_ItemCheck(object sender, ItemCheckEventArgs e)
+		{
+			string item = this.checkedListBoxMods.Items[e.Index].ToString();
+			if (e.NewValue == CheckState.Unchecked)
+			{
+				this.config.mods.Remove(item);
+				return;
+			}
+			if (!this.config.mods.Contains(item))
+			{
+				this.config.mods.Add(item);
+			}
+		}
+
+		private void PopulateDMFlags()
+		{
+			string[] array = Resources.DMFlags.Split(new string[]
+			{
+				Environment.NewLine
+			}, StringSplitOptions.None);
+			for (int i = 0; i < array.Length; i++)
+			{
+				string[] array2 = array[i].Split(new char[]
+				{
+					'\t'
+				});
+				if (array2[0] == "DMFlags")
+				{
+					this.DMFlags.Add(new DMFlag(int.Parse(array2[1]), array2[2], bool.Parse(array2[3]), array2[4]));
+				}
+				else
+				{
+					this.DMFlags2.Add(new DMFlag(int.Parse(array2[1]), array2[2], bool.Parse(array2[3]), array2[4]));
+				}
+			}
+			this.listViewDMFlags.SelectedIndexChanged += this.SkipSelection;
+			this.listViewDMFlags.ItemCheck += this.ListViewDMFlags_ItemCheck;
+			for (int j = 0; j < this.DMFlags.Count; j++)
+			{
+				this.listViewDMFlags.Items.Add(this.DMFlags[j].Name);
+				this.listViewDMFlags.Items[this.listViewDMFlags.Items.Count - 1].Checked = ((this.config.DMFlags & this.DMFlags[j].Key) == this.DMFlags[j].Key ^ this.DMFlags[j].DefaultState);
+				this.listViewDMFlags.Items[this.listViewDMFlags.Items.Count - 1].ToolTipText = this.DMFlags[j].Description;
+			}
+			this.listViewDMFlags.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
+			this.listViewDMFlags2.SelectedIndexChanged += this.SkipSelection;
+			for (int k = 0; k < this.DMFlags2.Count; k++)
+			{
+				this.listViewDMFlags2.Items.Add(this.DMFlags2[k].Name);
+				this.listViewDMFlags2.Items[this.listViewDMFlags2.Items.Count - 1].Checked = ((this.config.DMFlags2 & this.DMFlags2[k].Key) == this.DMFlags2[k].Key ^ this.DMFlags2[k].DefaultState);
+				this.listViewDMFlags2.Items[this.listViewDMFlags2.Items.Count - 1].ToolTipText = this.DMFlags2[k].Description;
+			}
+			this.listViewDMFlags2.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
+		}
+
+		private void ListViewDMFlags_ItemCheck(object sender, ItemCheckEventArgs e)
+		{
+			if (e.NewValue == CheckState.Checked)
+			{
+				if (e.Index == 4 || e.Index == 5)
+				{
+					this.listViewDMFlags.Items[3].Checked = false;
+				}
+				if (e.Index == 3 || e.Index == 5)
+				{
+					this.listViewDMFlags.Items[4].Checked = false;
+				}
+				if (e.Index == 3 || e.Index == 4)
+				{
+					this.listViewDMFlags.Items[5].Checked = false;
+				}
+			}
+		}
+
+		private void SkipSelection(object sender, EventArgs e)
+		{
+			((ListView)sender).SelectedIndices.Clear();
 		}
 
 		private void ProcessLoadOrder()
@@ -40,11 +121,11 @@ namespace DoomRPG
 			{
 				string text = File.ReadAllText(path);
 				this.richTextBoxCredits.Text = text;
-				this.richTextBoxCredits_TextChanged(null, null);
+				this.RichTextBoxCredits_TextChanged(null, null);
 			}
 		}
 
-		private async Task PopulateComboBoxes()
+		private void PopulateComboBoxes()
 		{
 			for (int i = 0; i < Enum.GetNames(typeof(IWAD)).Length; i++)
 			{
@@ -71,6 +152,10 @@ namespace DoomRPG
 					}
 				}
 			}
+		}
+
+		private async Task PopulateBranchesComboBox()
+		{
 			foreach (string item in await this.GetBranches())
 			{
 				this.comboBoxBranch.Items.Add(item);
@@ -230,6 +315,8 @@ namespace DoomRPG
 			this.checkBoxExtraTics.Checked = this.config.extraTics;
 			this.numericUpDownDuplicate.Value = this.config.duplicate;
 			this.textBoxCustomCommands.Text = this.config.customCommands;
+			this.checkBoxDMFlags.Checked = this.config.EnableDMFlags;
+			this.checkBoxDMFlags2.Checked = this.config.EnableDMFlags2;
 		}
 
 		private void SaveControls()
@@ -250,14 +337,6 @@ namespace DoomRPG
 				if (this.checkedListBoxPatches.GetItemChecked(i))
 				{
 					this.config.patches.Add(this.patches[i].Name);
-				}
-			}
-			this.config.mods.Clear();
-			for (int j = 0; j < this.checkedListBoxMods.Items.Count; j++)
-			{
-				if (this.checkedListBoxMods.GetItemChecked(j))
-				{
-					this.config.mods.Add(this.checkedListBoxMods.Items[j].ToString());
 				}
 			}
 			this.config.multiplayer = this.checkBoxMultiplayer.Checked;
@@ -282,20 +361,22 @@ namespace DoomRPG
 			this.config.extraTics = this.checkBoxExtraTics.Checked;
 			this.config.duplicate = (int)this.numericUpDownDuplicate.Value;
 			this.config.customCommands = this.textBoxCustomCommands.Text;
+			this.config.EnableDMFlags = this.checkBoxDMFlags.Checked;
+			this.config.EnableDMFlags2 = this.checkBoxDMFlags2.Checked;
 		}
 
-		private async Task<string> GetMasterSHA()
+		private async Task<string> GetBranchSHA(string branchName)
 		{
-			return (await new GitHubClient(new ProductHeaderValue("DoomRPG")).Repository.GetBranch("Sumwunn", "DoomRPG", this.currentBranch)).Commit.Sha;
+			Branch branch = (await Octokitten.GetAllBranches("Sumwunn", "DoomRPG")).Single((Branch b) => b.name == branchName);
+			return (branch != null) ? branch.commit.sha : null;
 		}
 
 		private async Task<List<string>> GetBranches()
 		{
-			GitHubClient gitHubClient = new GitHubClient(new ProductHeaderValue("DoomRPG"));
 			List<string> branchNames = new List<string>();
-			foreach (Branch branch in await gitHubClient.Repository.GetAllBranches("Sumwunn", "DoomRPG"))
+			foreach (Branch branch in ((IEnumerable<Branch>)(await Octokitten.GetAllBranches("Sumwunn", "DoomRPG"))))
 			{
-				branchNames.Add(branch.Name);
+				branchNames.Add(branch.name);
 			}
 			return branchNames;
 		}
@@ -332,7 +413,7 @@ namespace DoomRPG
 				this.toolStripProgressBar.Style = ProgressBarStyle.Marquee;
 				try
 				{
-					string a = await this.GetMasterSHA();
+					string a = await this.GetBranchSHA(this.currentBranch);
 					string path = this.config.DRPGPath + "\\SHA-1";
 					if (Directory.Exists(this.config.DRPGPath + "\\.git"))
 					{
@@ -393,16 +474,14 @@ namespace DoomRPG
 			using (WebClient webClient = new WebClient())
 			{
 				webClient.DownloadFileAsync(address, directoryName + str);
-				webClient.DownloadProgressChanged += this.client_DownloadProgressChanged;
-				webClient.DownloadFileCompleted += this.client_DownloadFileCompleted;
+				webClient.DownloadProgressChanged += this.Client_DownloadProgressChanged;
+				webClient.DownloadFileCompleted += this.Client_DownloadFileCompleted;
 			}
 		}
 
 		private void ExtractDRPG()
 		{
-            string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            string zipPath = path + "\\DoomRPG.zip";
-            new FastZip();
+			Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\DoomRPG.zip";
 			try
 			{
 				this.toolStripStatusLabel.Text = "Извлечение DoomRPG.zip...";
@@ -419,10 +498,10 @@ namespace DoomRPG
 		{
 			string directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			string zipPath = directoryName + "\\DoomRPG.zip";
-			new FastZip().ExtractZip(zipPath, directoryName, string.Empty);
+			ZipFile.ExtractToDirectory(zipPath, directoryName);
 			Directory.Move(directoryName + "\\DoomRPG-" + this.currentBranch, this.config.DRPGPath);
 			string path = this.config.DRPGPath + "\\SHA-1";
-			string contents = await this.GetMasterSHA();
+			string contents = await this.GetBranchSHA(this.currentBranch);
 			File.WriteAllText(path, contents);
 			path = null;
 			File.Delete(zipPath);
@@ -510,20 +589,17 @@ namespace DoomRPG
 				text = text + " -record " + this.textBoxDemo.Text + ".lmp";
 			}
 			text += " -file";
-			for (int i = 0; i < this.checkedListBoxMods.Items.Count; i++)
+			for (int i = 0; i < this.config.mods.Count; i++)
 			{
-				if (this.checkedListBoxMods.GetItemChecked(i))
+				text = string.Concat(new string[]
 				{
-					text = string.Concat(new string[]
-					{
-						text,
-						" \"",
-						this.config.modsPath,
-						"\\",
-						this.checkedListBoxMods.Items[i].ToString(),
-						"\""
-					});
-				}
+					text,
+					" \"",
+					this.config.modsPath,
+					"\\",
+					this.config.mods[i],
+					"\""
+				});
 			}
 			text = text + " \"" + this.config.DRPGPath + "\\DoomRPG\"";
 			for (int j = 0; j < this.patches.Count; j++)
@@ -532,6 +608,14 @@ namespace DoomRPG
 				{
 					text = text + " \"" + this.patches[j].Path + "\"";
 				}
+			}
+			if (this.config.EnableDMFlags)
+			{
+				text = text + " +set dmflags " + this.config.DMFlags.ToString();
+			}
+			if (this.config.EnableDMFlags2)
+			{
+				text = text + " +set dmflags2 " + this.config.DMFlags2.ToString();
 			}
 			if (this.config.customCommands != string.Empty)
 			{
@@ -552,36 +636,72 @@ namespace DoomRPG
 			return false;
 		}
 
-		private void buttonBrowsePortPath_Click(object sender, EventArgs e)
+		private void ButtonBrowsePortPath_Click(object sender, EventArgs e)
 		{
-			FileDialog fileDialog = new OpenFileDialog();
-			fileDialog.Title = "Указать путь к LZDoom...";
-			fileDialog.ShowDialog();
-			this.textBoxPortPath.Text = fileDialog.FileName;
+			FileDialog fileDialog = new OpenFileDialog
+			{
+				Title = "Указать путь к (G/L)ZDoom(32)..."
+			};
+			if (this.textBoxPortPath.Text == string.Empty)
+			{
+				fileDialog.InitialDirectory = Directory.GetCurrentDirectory();
+			}
+			else
+			{
+				fileDialog.InitialDirectory = Path.GetDirectoryName(this.textBoxPortPath.Text);
+			}
+			if (fileDialog.ShowDialog() == DialogResult.OK)
+			{
+				this.textBoxPortPath.Text = fileDialog.FileName;
+				this.config.portPath = fileDialog.FileName;
+			}
 		}
 
-		private void buttonBrowseDRPGPath_Click(object sender, EventArgs e)
+		private void ButtonBrowseDRPGPath_Click(object sender, EventArgs e)
 		{
 			FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-			folderBrowserDialog.ShowDialog();
-			this.textBoxDRPGPath.Text = folderBrowserDialog.SelectedPath;
-			this.LoadCredits();
+			if (this.textBoxDRPGPath.Text == string.Empty)
+			{
+				folderBrowserDialog.SelectedPath = Directory.GetCurrentDirectory();
+			}
+			else
+			{
+				folderBrowserDialog.SelectedPath = this.textBoxDRPGPath.Text;
+			}
+			if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+			{
+				this.textBoxDRPGPath.Text = folderBrowserDialog.SelectedPath;
+				this.config.DRPGPath = folderBrowserDialog.SelectedPath;
+				this.LoadCredits();
+				this.PopulatePatches();
+			}
 		}
 
-		private void buttonBrowseModsPath_Click(object sender, EventArgs e)
+		private void ButtonBrowseModsPath_Click(object sender, EventArgs e)
 		{
 			FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-			folderBrowserDialog.ShowDialog();
-			this.textBoxModsPath.Text = folderBrowserDialog.SelectedPath;
+			if (this.textBoxModsPath.Text == string.Empty)
+			{
+				folderBrowserDialog.SelectedPath = Directory.GetCurrentDirectory();
+			}
+			else
+			{
+				folderBrowserDialog.SelectedPath = this.textBoxModsPath.Text;
+			}
+			if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+			{
+				this.textBoxModsPath.Text = folderBrowserDialog.SelectedPath;
+				this.config.modsPath = folderBrowserDialog.SelectedPath;
+				this.PopulateMods();
+			}
+		}
+
+		private void TextBoxModsPath_TextChanged(object sender, EventArgs e)
+		{
 			this.PopulateMods();
 		}
 
-		private void textBoxModsPath_TextChanged(object sender, EventArgs e)
-		{
-			this.PopulateMods();
-		}
-
-		private async void buttonCheckUpdates_Click(object sender, EventArgs e)
+		private async void ButtonCheckUpdates_Click(object sender, EventArgs e)
 		{
 			if (this.currentBranch == string.Empty)
 			{
@@ -600,7 +720,7 @@ namespace DoomRPG
 			}
 		}
 
-		private void buttonLaunch_Click(object sender, EventArgs e)
+		private void ButtonLaunch_Click(object sender, EventArgs e)
 		{
 			try
 			{
@@ -609,6 +729,7 @@ namespace DoomRPG
 					if (PatchInfo.CheckForConflicts(this.patches))
 					{
 						this.SaveControls();
+						this.CalculateDMFlags();
 						this.config.Save();
 						if (this.CheckForErrors())
 						{
@@ -623,7 +744,29 @@ namespace DoomRPG
 			}
 		}
 
-		private void richTextBoxCredits_TextChanged(object sender, EventArgs e)
+		private void CalculateDMFlags()
+		{
+			int num = 0;
+			int dmflags = 0;
+			for (int i = 0; i < this.listViewDMFlags.Items.Count; i++)
+			{
+				if (this.listViewDMFlags.Items[i].Checked ^ this.DMFlags[i].DefaultState)
+				{
+					num |= this.DMFlags[i].Key;
+				}
+			}
+			for (int j = 0; j < this.listViewDMFlags2.Items.Count; j++)
+			{
+				if (this.listViewDMFlags2.Items[j].Checked ^ this.DMFlags2[j].DefaultState)
+				{
+					num |= this.DMFlags2[j].Key;
+				}
+			}
+			this.config.DMFlags = num;
+			this.config.DMFlags2 = dmflags;
+		}
+
+		private void RichTextBoxCredits_TextChanged(object sender, EventArgs e)
 		{
 			this.richTextBoxCredits.Find("Testers");
 			this.richTextBoxCredits.SelectionFont = new Font(FontFamily.GenericSansSerif, 12f, FontStyle.Bold);
@@ -639,7 +782,7 @@ namespace DoomRPG
 			this.richTextBoxCredits.SelectionColor = Color.Blue;
 		}
 
-		private void client_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
+		private void Client_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
 		{
 			this.toolStripStatusLabel.ForeColor = Color.FromKnownColor(KnownColor.ControlText);
 			this.toolStripStatusLabel.Text = string.Concat(new object[]
@@ -655,7 +798,7 @@ namespace DoomRPG
 			this.toolStripProgressBar.Value = e.ProgressPercentage;
 		}
 
-		private void client_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
+		private void Client_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
 		{
 			try
 			{
@@ -667,7 +810,7 @@ namespace DoomRPG
 			}
 		}
 
-		private void timer_Tick(object sender, EventArgs e)
+		private void Timer_Tick(object sender, EventArgs e)
 		{
 			for (int i = 0; i < this.patches.Count; i++)
 			{
@@ -720,39 +863,49 @@ namespace DoomRPG
 			this.textBoxHostname.Enabled = false;
 		}
 
-		private void timerPulse_Tick(object sender, EventArgs e)
+		private void TimerPulse_Tick(object sender, EventArgs e)
 		{
 			int red = 160 + (int)(Math.Sin((double)DateTime.Now.Millisecond / 256.0) * 64.0);
 			this.buttonLaunch.ForeColor = Color.FromArgb(255, red, 0, 0);
 		}
 
-		private void buttonCopyCommandClipboard_Click(object sender, EventArgs e)
+		private void ButtonShowCommandLine_Click(object sender, EventArgs e)
 		{
 			PatchInfo.CheckForRequirements(this.patches);
 			PatchInfo.CheckForConflicts(this.patches);
 			this.SaveControls();
+			this.CalculateDMFlags();
 			this.config.Save();
-			Clipboard.SetText("\"" + this.config.portPath + "\"" + this.BuildCommandLine());
+			new FormCommandLine("\"" + this.config.portPath + "\"" + this.BuildCommandLine()).ShowDialog();
 		}
 
-		private void buttonRefresh_Click(object sender, EventArgs e)
+		private void ButtonRefresh_Click(object sender, EventArgs e)
 		{
 			this.PopulatePatches();
 			this.PopulateMods();
 			this.LoadControls();
 		}
 
-		private void textBoxDRPGPath_TextChanged(object sender, EventArgs e)
+		private void TextBoxDRPGPath_TextChanged(object sender, EventArgs e)
 		{
 			this.LoadCredits();
 		}
 
-		private void comboBoxBranch_SelectedIndexChanged(object sender, EventArgs e)
+		private void ComboBoxBranch_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			this.currentBranch = this.comboBoxBranch.Text;
 		}
 
-		private Version version = new Version(1, 3, 3, 7);
+		private void ButtonLoadOrder_Click(object sender, EventArgs e)
+		{
+			FormLoadOrder formLoadOrder = new FormLoadOrder(this.config.mods);
+			if (formLoadOrder.ShowDialog() == DialogResult.OK)
+			{
+				this.config.mods = formLoadOrder.LoadOrder;
+			}
+		}
+
+		private Version version = Assembly.GetExecutingAssembly().GetName().Version;
 
 		private Config config = new Config();
 
@@ -760,7 +913,9 @@ namespace DoomRPG
 
 		private List<PatchInfo> patches = new List<PatchInfo>();
 
-		private Dictionary<int, string> loadOrder = new Dictionary<int, string>();
+		private List<DMFlag> DMFlags = new List<DMFlag>();
+
+		private List<DMFlag> DMFlags2 = new List<DMFlag>();
 
 		private string[] fileTypes = new string[]
 		{
@@ -772,5 +927,5 @@ namespace DoomRPG
 			"deh",
 			"bex"
 		};
-    }
+	}
 }
