@@ -173,10 +173,6 @@ namespace DoomRPG
 			return this.name;
 		}
 
-		public PatchInfo()
-		{
-		}
-
 		private string name;
 
 		private List<string> conflicts = new List<string>();
