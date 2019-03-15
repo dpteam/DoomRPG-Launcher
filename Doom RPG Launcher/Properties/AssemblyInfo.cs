@@ -18,4 +18,3 @@ using System.Runtime.Versioning;
 [assembly: RuntimeCompatibility(WrapNonExceptionThrows = true)]
 [assembly: ComVisible(false)]
 [assembly: Guid("e529dff8-1dee-419d-b3d9-98dcee1e73be")]
-[assembly: NeutralResourcesLanguage("ru")]
