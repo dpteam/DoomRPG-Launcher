@@ -94,7 +94,7 @@
 			base.ResumeLayout(false);
 		}
 
-		private global::System.ComponentModel.IContainer components;
+		private global::System.ComponentModel.IContainer components = null;
 
 		private global::System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
 

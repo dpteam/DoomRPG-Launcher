@@ -29,8 +29,8 @@ namespace DoomRPG
 			this.PopulateDMFlags();
 			this.LoadControls();
 			this.LoadCredits();
-			this.PopulateBranchesComboBox();
-		}
+            _ = PopulateBranchesComboBox();
+        }
 
 		private void CheckedListBoxMods_ItemCheck(object sender, ItemCheckEventArgs e)
 		{
@@ -481,8 +481,10 @@ namespace DoomRPG
 
 		private void ExtractDRPG()
 		{
-			Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\DoomRPG.zip";
-			try
+            string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string zipPath = path + "\\DoomRPG.zip";
+
+            try
 			{
 				this.toolStripStatusLabel.Text = "Извлечение DoomRPG.zip...";
 				this.toolStripProgressBar.Style = ProgressBarStyle.Marquee;

@@ -39,7 +39,7 @@
 			base.PerformLayout();
 		}
 
-		private global::System.ComponentModel.IContainer components;
+		private global::System.ComponentModel.IContainer components = null;
 
 		private global::System.Windows.Forms.TextBox textBoxCommandLine;
 	}
